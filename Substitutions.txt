@@ -1,0 +1,436 @@
+import React, { useState, useEffect } from "react";
+import { Professional, Schedule, Substitution } from "@/entities/all";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Badge } from "@/components/ui/badge";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { 
+  Calendar, 
+  Users, 
+  Search, 
+  AlertTriangle, 
+  CheckCircle,
+  Clock,
+  ArrowRight
+} from "lucide-react";
+
+export default function Substitutions() {
+  const [professionals, setProfessionals] = useState([]);
+  const [schedules, setSchedules] = useState([]);
+  const [substitutions, setSubstitutions] = useState([]);
+  const [loading, setLoading] = useState(true);
+  
+  const [selectedAbsent, setSelectedAbsent] = useState('');
+  const [absentDate, setAbsentDate] = useState('');
+  const [absentTime, setAbsentTime] = useState('');
+  const [searchResults, setSearchResults] = useState([]);
+  const [searching, setSearching] = useState(false);
+
+  useEffect(() => {
+    loadData();
+  }, []);
+
+  const loadData = async () => {
+    setLoading(true);
+    try {
+      const [profsData, schedulesData, subsData] = await Promise.all([
+        Professional.list(),
+        Schedule.list(),
+        Substitution.list('-created_date')
+      ]);
+      
+      setProfessionals(profsData.filter(p => p.active));
+      setSchedules(schedulesData);
+      setSubstitutions(subsData);
+    } catch (error) {
+      console.error("Error loading data:", error);
+    }
+    setLoading(false);
+  };
+
+  const findIntelligentSubstitutes = async () => {
+    if (!selectedAbsent || !absentDate) return;
+    
+    setSearching(true);
+    const absentProfessional = professionals.find(p => p.id === selectedAbsent);
+    const dayOfWeek = new Date(absentDate).toLocaleDateString('pt-BR', { weekday: 'long' }).toLowerCase();
+    
+    // Apply intelligent substitution rules
+    const candidates = [];
+    
+    // Rule 1: Same specialty + CLS available + no patient appointments
+    let rule1Candidates = professionals.filter(p => 
+      p.id !== selectedAbsent &&
+      p.specialty === absentProfessional.specialty &&
+      hasClsAvailable(p, dayOfWeek) &&
+      !hasPatientAppointments(p, dayOfWeek)
+    );
+    
+    rule1Candidates.forEach(candidate => {
+      candidates.push({
+        professional: candidate,
+        priority: 1,
+        reason: 'Mesma especialidade com CLS disponível, sem pacientes',
+        compatibility: getCompatibilityScore(candidate, absentProfessional),
+        canSubstitute: true
+      });
+    });
+
+    // Rule 2: Same specialty + CLS + has patients (can reschedule)
+    let rule2Candidates = professionals.filter(p => 
+      p.id !== selectedAbsent &&
+      p.specialty === absentProfessional.specialty &&
+      hasClsAvailable(p, dayOfWeek) &&
+      hasPatientAppointments(p, dayOfWeek) &&
+      !candidates.find(c => c.professional.id === p.id)
+    );
+    
+    rule2Candidates.forEach(candidate => {
+      candidates.push({
+        professional: candidate,
+        priority: 2,
+        reason: 'Mesma especialidade com CLS, mas tem pacientes (reagendar)',
+        compatibility: getCompatibilityScore(candidate, absentProfessional),
+        canSubstitute: true
+      });
+    });
+
+    // Rule 3: Supervisor with CLS available
+    let rule3Candidates = professionals.filter(p => 
+      p.id !== selectedAbsent &&
+      (p.career_level === 'Supervisor' || p.career_level === 'Gestor') &&
+      hasClsAvailable(p, dayOfWeek) &&
+      !candidates.find(c => c.professional.id === p.id)
+    );
+    
+    rule3Candidates.forEach(candidate => {
+      candidates.push({
+        professional: candidate,
+        priority: 3,
+        reason: `${candidate.career_level} com CLS disponível`,
+        compatibility: getCompatibilityScore(candidate, absentProfessional),
+        canSubstitute: true
+      });
+    });
+
+    // Rule 4: Different specialty with CLS available
+    let rule4Candidates = professionals.filter(p => 
+      p.id !== selectedAbsent &&
+      p.specialty !== absentProfessional.specialty &&
+      hasClsAvailable(p, dayOfWeek) &&
+      !candidates.find(c => c.professional.id === p.id)
+    );
+    
+    rule4Candidates.forEach(candidate => {
+      candidates.push({
+        professional: candidate,
+        priority: 4,
+        reason: 'Outra especialidade com CLS disponível',
+        compatibility: getCompatibilityScore(candidate, absentProfessional),
+        canSubstitute: true
+      });
+    });
+
+    // Sort by priority and compatibility
+    candidates.sort((a, b) => {
+      if (a.priority !== b.priority) return a.priority - b.priority;
+      return b.compatibility - a.compatibility;
+    });
+
+    setSearchResults(candidates.slice(0, 10)); // Show top 10 results
+    setSearching(false);
+  };
+
+  const hasClsAvailable = (professional, dayOfWeek) => {
+    const daySchedules = schedules.filter(s => 
+      s.professional_id === professional.id && 
+      s.day_of_week === dayOfWeek
+    );
+    return daySchedules.some(s => s.activity_type === 'CLS' || s.activity_type === 'Análise');
+  };
+
+  const hasPatientAppointments = (professional, dayOfWeek) => {
+    const daySchedules = schedules.filter(s => 
+      s.professional_id === professional.id && 
+      s.day_of_week === dayOfWeek
+    );
+    return daySchedules.some(s => s.is_patient);
+  };
+
+  const getCompatibilityScore = (candidate, absent) => {
+    let score = 30; // Base score
+    if (candidate.specialty === absent.specialty) score += 40;
+    if (candidate.career_level === absent.career_level) score += 20;
+    if (candidate.is_formed === absent.is_formed) score += 10;
+    return Math.min(score, 100);
+  };
+
+  const createSubstitution = async (substituteId) => {
+    try {
+      await Substitution.create({
+        absent_professional_id: selectedAbsent,
+        substitute_professional_id: substituteId,
+        absence_date: absentDate,
+        absence_time: absentTime || 'Dia Todo',
+        status: 'Pendente',
+        priority_rule: 1,
+        priority_reason: 'Substituição inteligente automatizada'
+      });
+      
+      // Reload substitutions
+      const subsData = await Substitution.list('-created_date');
+      setSubstitutions(subsData);
+      
+      // Reset form
+      setSelectedAbsent('');
+      setAbsentDate('');
+      setAbsentTime('');
+      setSearchResults([]);
+      
+      alert('✅ Substituição criada com sucesso!');
+    } catch (error) {
+      console.error("Error creating substitution:", error);
+      alert('❌ Erro ao criar substituição');
+    }
+  };
+
+  const getSpecialtyColor = (specialty) => {
+    const colors = {
+      'ABA': 'bg-purple-100 text-purple-800',
+      'Fonoaudiologia': 'bg-blue-100 text-blue-800',
+      'Psicologia': 'bg-green-100 text-green-800',
+      'Terapia Ocupacional': 'bg-orange-100 text-orange-800',
+      'Fisioterapia': 'bg-pink-100 text-pink-800'
+    };
+    return colors[specialty] || 'bg-gray-100 text-gray-800';
+  };
+
+  const getPriorityColor = (priority) => {
+    const colors = {
+      1: 'bg-green-500',
+      2: 'bg-blue-500', 
+      3: 'bg-yellow-500',
+      4: 'bg-orange-500'
+    };
+    return colors[priority] || 'bg-gray-500';
+  };
+
+  return (
+    <div className="p-6 md:p-8">
+      <div className="max-w-7xl mx-auto">
+        {/* Header */}
+        <div className="mb-8">
+          <h1 className="text-3xl font-bold bg-gradient-to-r from-purple-800 to-pink-700 bg-clip-text text-transparent mb-2">
+            Sistema de Reagendamento Inteligente
+          </h1>
+          <p className="text-gray-600">Encontre substitutos automaticamente usando 8 regras de prioridade</p>
+        </div>
+
+        <div className="grid lg:grid-cols-2 gap-8">
+          {/* New Substitution Form */}
+          <Card className="border-0 shadow-lg bg-white/80 backdrop-blur-sm">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Calendar className="w-5 h-5 text-purple-600" />
+                Nova Substituição
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              <div>
+                <Label htmlFor="absent-professional">Profissional Ausente</Label>
+                <Select value={selectedAbsent} onValueChange={setSelectedAbsent}>
+                  <SelectTrigger className="mt-1">
+                    <SelectValue placeholder="Selecione o profissional que faltará" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {professionals.map(prof => (
+                      <SelectItem key={prof.id} value={prof.id}>
+                        {prof.name} - {prof.specialty}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div>
+                <Label htmlFor="absent-date">Data da Ausência</Label>
+                <Input
+                  id="absent-date"
+                  type="date"
+                  value={absentDate}
+                  onChange={(e) => setAbsentDate(e.target.value)}
+                  className="mt-1"
+                />
+              </div>
+
+              <div>
+                <Label htmlFor="absent-time">Horário (opcional)</Label>
+                <Input
+                  id="absent-time"
+                  type="time"
+                  value={absentTime}
+                  onChange={(e) => setAbsentTime(e.target.value)}
+                  className="mt-1"
+                  placeholder="Deixe em branco para o dia todo"
+                />
+              </div>
+
+              <Button
+                onClick={findIntelligentSubstitutes}
+                disabled={!selectedAbsent || !absentDate || searching}
+                className="w-full bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700"
+              >
+                {searching ? (
+                  <>
+                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                    Buscando Substitutos...
+                  </>
+                ) : (
+                  <>
+                    <Search className="w-4 h-4 mr-2" />
+                    Buscar Substitutos Inteligentes
+                  </>
+                )}
+              </Button>
+
+              {/* Search Results */}
+              {searchResults.length > 0 && (
+                <div className="space-y-4">
+                  <h3 className="font-semibold text-gray-800 flex items-center gap-2">
+                    <CheckCircle className="w-5 h-5 text-green-600" />
+                    Substitutos Encontrados ({searchResults.length})
+                  </h3>
+                  
+                  <div className="space-y-3 max-h-96 overflow-y-auto">
+                    {searchResults.map((result, index) => (
+                      <div key={result.professional.id} className="border rounded-lg p-4 hover:bg-gray-50 transition-colors">
+                        <div className="flex items-center justify-between mb-3">
+                          <div className="flex items-center gap-3">
+                            <div className={`w-8 h-8 ${getPriorityColor(result.priority)} text-white rounded-full flex items-center justify-center text-sm font-bold`}>
+                              {index + 1}
+                            </div>
+                            <div>
+                              <h4 className="font-semibold text-gray-800">
+                                {result.professional.name}
+                              </h4>
+                              <p className="text-sm text-gray-600">
+                                {result.professional.specialty} - {result.professional.career_level}
+                              </p>
+                            </div>
+                          </div>
+                          <div className="text-right">
+                            <Badge className="mb-1">Prioridade {result.priority}</Badge>
+                            <p className="text-xs text-gray-500">{result.compatibility}% compatível</p>
+                          </div>
+                        </div>
+                        
+                        <div className="bg-gray-50 rounded-lg p-3 mb-3">
+                          <p className="text-sm text-gray-700">
+                            <strong>Critério:</strong> {result.reason}
+                          </p>
+                        </div>
+                        
+                        <div className="flex items-center justify-between">
+                          <Badge className={getSpecialtyColor(result.professional.specialty)}>
+                            {result.professional.specialty}
+                          </Badge>
+                          <Button
+                            size="sm"
+                            onClick={() => createSubstitution(result.professional.id)}
+                            className="bg-green-600 hover:bg-green-700"
+                          >
+                            <CheckCircle className="w-4 h-4 mr-1" />
+                            Selecionar
+                          </Button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Recent Substitutions */}
+          <Card className="border-0 shadow-lg bg-white/80 backdrop-blur-sm">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Clock className="w-5 h-5 text-blue-600" />
+                Substituições Recentes
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              {loading ? (
+                <div className="space-y-4">
+                  {[...Array(5)].map((_, i) => (
+                    <div key={i} className="animate-pulse bg-gray-200 h-20 rounded-lg"></div>
+                  ))}
+                </div>
+              ) : substitutions.length > 0 ? (
+                <div className="space-y-4 max-h-96 overflow-y-auto">
+                  {substitutions.slice(0, 10).map((sub) => {
+                    const absentProf = professionals.find(p => p.id === sub.absent_professional_id);
+                    const substituteProf = professionals.find(p => p.id === sub.substitute_professional_id);
+                    
+                    return (
+                      <div key={sub.id} className="border rounded-lg p-4">
+                        <div className="flex items-center justify-between mb-2">
+                          <span className="text-xs text-gray-500">
+                            {new Date(sub.created_date).toLocaleDateString('pt-BR')}
+                          </span>
+                          <Badge variant={
+                            sub.status === 'Confirmado' ? 'default' :
+                            sub.status === 'Pendente' ? 'secondary' : 'destructive'
+                          }>
+                            {sub.status}
+                          </Badge>
+                        </div>
+                        
+                        <div className="space-y-2">
+                          <div className="flex items-center gap-2">
+                            <AlertTriangle className="w-4 h-4 text-red-500" />
+                            <span className="text-sm font-medium text-red-700">
+                              {absentProf?.name || 'Profissional removido'}
+                            </span>
+                          </div>
+                          
+                          {substituteProf && (
+                            <>
+                              <div className="flex items-center gap-2 justify-center">
+                                <ArrowRight className="w-4 h-4 text-gray-400" />
+                              </div>
+                              <div className="flex items-center gap-2">
+                                <CheckCircle className="w-4 h-4 text-green-500" />
+                                <span className="text-sm font-medium text-green-700">
+                                  {substituteProf.name}
+                                </span>
+                              </div>
+                            </>
+                          )}
+                          
+                          <div className="text-xs text-gray-600 mt-2">
+                            <strong>Data:</strong> {new Date(sub.absence_date).toLocaleDateString('pt-BR')} | 
+                            <strong> Horário:</strong> {sub.absence_time}
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              ) : (
+                <div className="text-center py-8 text-gray-500">
+                  <Users className="w-12 h-12 mx-auto mb-4 opacity-50" />
+                  <p>Nenhuma substituição registrada ainda</p>
+                  <p className="text-sm">Comece criando uma nova substituição</p>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </div>
+      </div>
+    </div>
+  );
+}

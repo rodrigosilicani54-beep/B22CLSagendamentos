@@ -1,0 +1,348 @@
+
+import React, { useState, useEffect, useCallback } from "react";
+import { Professional } from "@/entities/all";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Badge } from "@/components/ui/badge";
+import { 
+  Plus, 
+  Search, 
+  Users, 
+  Mail, 
+  Phone,
+  Filter,
+  Grid3X3,
+  List
+} from "lucide-react";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+
+export default function Professionals() {
+  const [professionals, setProfessionals] = useState([]);
+  const [filteredProfessionals, setFilteredProfessionals] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [viewMode, setViewMode] = useState('grid');
+  const [searchTerm, setSearchTerm] = useState('');
+  const [filterSpecialty, setFilterSpecialty] = useState('');
+  const [filterCareerLevel, setFilterCareerLevel] = useState('');
+
+  useEffect(() => {
+    loadProfessionals();
+  }, []);
+
+  const loadProfessionals = async () => {
+    setLoading(true);
+    try {
+      const data = await Professional.list('-created_date');
+      setProfessionals(data);
+    } catch (error) {
+      console.error("Error loading professionals:", error);
+    }
+    setLoading(false);
+  };
+
+  const filterProfessionals = useCallback(() => {
+    let filtered = professionals;
+
+    if (searchTerm) {
+      filtered = filtered.filter(prof => 
+        prof.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        prof.specialty.toLowerCase().includes(searchTerm.toLowerCase())
+      );
+    }
+
+    if (filterSpecialty) {
+      filtered = filtered.filter(prof => prof.specialty === filterSpecialty);
+    }
+
+    if (filterCareerLevel) {
+      filtered = filtered.filter(prof => prof.career_level === filterCareerLevel);
+    }
+
+    setFilteredProfessionals(filtered);
+  }, [professionals, searchTerm, filterSpecialty, filterCareerLevel]);
+
+  useEffect(() => {
+    filterProfessionals();
+  }, [filterProfessionals]); // Now depends on the memoized filterProfessionals function
+
+  const getSpecialties = () => {
+    return [...new Set(professionals.map(p => p.specialty))];
+  };
+
+  const getCareerLevels = () => {
+    return [...new Set(professionals.map(p => p.career_level))];
+  };
+
+  const getSpecialtyColor = (specialty) => {
+    const colors = {
+      'ABA': 'bg-purple-100 text-purple-800',
+      'Fonoaudiologia': 'bg-blue-100 text-blue-800',
+      'Psicologia': 'bg-green-100 text-green-800',
+      'Terapia Ocupacional': 'bg-orange-100 text-orange-800',
+      'Fisioterapia': 'bg-pink-100 text-pink-800',
+      'Nutrição': 'bg-yellow-100 text-yellow-800',
+      'Medicina': 'bg-red-100 text-red-800',
+      'Supervisão': 'bg-indigo-100 text-indigo-800',
+      'Gestão': 'bg-gray-100 text-gray-800'
+    };
+    return colors[specialty] || 'bg-gray-100 text-gray-800';
+  };
+
+  const getCareerLevelColor = (level) => {
+    const colors = {
+      'Trainee': 'bg-blue-50 text-blue-700 border-blue-200',
+      'Profissional': 'bg-green-50 text-green-700 border-green-200', 
+      'Analista': 'bg-purple-50 text-purple-700 border-purple-200',
+      'Supervisor': 'bg-orange-50 text-orange-700 border-orange-200',
+      'Gestor': 'bg-red-50 text-red-700 border-red-200',
+      'Coordenador': 'bg-indigo-50 text-indigo-700 border-indigo-200',
+      'Diretor': 'bg-gray-50 text-gray-700 border-gray-200'
+    };
+    return colors[level] || 'bg-gray-50 text-gray-700 border-gray-200';
+  };
+
+  return (
+    <div className="p-6 md:p-8">
+      <div className="max-w-7xl mx-auto">
+        {/* Header */}
+        <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4">
+          <div>
+            <h1 className="text-3xl font-bold bg-gradient-to-r from-purple-800 to-pink-700 bg-clip-text text-transparent mb-2">
+              Profissionais Cadastrados
+            </h1>
+            <p className="text-gray-600">
+              Gerencie toda a equipe da clínica
+            </p>
+          </div>
+          <Button className="bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700">
+            <Plus className="w-4 h-4 mr-2" />
+            Novo Profissional
+          </Button>
+        </div>
+
+        {/* Filters and Search */}
+        <Card className="mb-6 border-0 shadow-lg bg-white/80 backdrop-blur-sm">
+          <CardHeader>
+            <CardTitle className="text-lg flex items-center gap-2">
+              <Filter className="w-5 h-5 text-purple-600" />
+              Filtros e Busca
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="flex flex-col md:flex-row gap-4">
+              <div className="relative flex-1">
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
+                <Input
+                  placeholder="Buscar profissional ou especialidade..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="pl-10"
+                />
+              </div>
+              
+              <Select value={filterSpecialty} onValueChange={setFilterSpecialty}>
+                <SelectTrigger className="w-full md:w-48">
+                  <SelectValue placeholder="Especialidade" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={null}>Todas</SelectItem>
+                  {getSpecialties().map(specialty => (
+                    <SelectItem key={specialty} value={specialty}>
+                      {specialty}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+
+              <Select value={filterCareerLevel} onValueChange={setFilterCareerLevel}>
+                <SelectTrigger className="w-full md:w-48">
+                  <SelectValue placeholder="Nível" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={null}>Todos</SelectItem>
+                  {getCareerLevels().map(level => (
+                    <SelectItem key={level} value={level}>
+                      {level}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+
+              <div className="flex border rounded-lg">
+                <Button
+                  variant={viewMode === 'grid' ? 'default' : 'ghost'}
+                  size="sm"
+                  onClick={() => setViewMode('grid')}
+                  className="rounded-r-none"
+                >
+                  <Grid3X3 className="w-4 h-4" />
+                </Button>
+                <Button
+                  variant={viewMode === 'list' ? 'default' : 'ghost'}
+                  size="sm"
+                  onClick={() => setViewMode('list')}
+                  className="rounded-l-none"
+                >
+                  <List className="w-4 h-4" />
+                </Button>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-between text-sm text-gray-600">
+              <span>{filteredProfessionals.length} profissionais encontrados</span>
+              {(searchTerm || filterSpecialty || filterCareerLevel) && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => {
+                    setSearchTerm('');
+                    setFilterSpecialty('');
+                    setFilterCareerLevel('');
+                  }}
+                  className="text-purple-600 hover:text-purple-700"
+                >
+                  Limpar filtros
+                </Button>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Professionals List/Grid */}
+        {loading ? (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {[...Array(6)].map((_, i) => (
+              <Card key={i} className="animate-pulse border-0 shadow-lg">
+                <CardContent className="p-6">
+                  <div className="flex items-center gap-4">
+                    <div className="w-12 h-12 bg-gray-200 rounded-full"></div>
+                    <div className="space-y-2 flex-1">
+                      <div className="h-4 bg-gray-200 rounded w-3/4"></div>
+                      <div className="h-3 bg-gray-200 rounded w-1/2"></div>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        ) : viewMode === 'grid' ? (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {filteredProfessionals.map((professional) => (
+              <Card key={professional.id} className="border-0 shadow-lg bg-white/80 backdrop-blur-sm hover:shadow-xl transition-shadow">
+                <CardContent className="p-6">
+                  <div className="flex items-start gap-4">
+                    <div className="w-12 h-12 bg-gradient-to-r from-purple-500 to-pink-500 rounded-full flex items-center justify-center text-white font-bold text-lg shadow-lg">
+                      {professional.name.charAt(0)}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <h3 className="font-bold text-gray-900 text-lg mb-1 truncate">
+                        {professional.name}
+                      </h3>
+                      <div className="space-y-2 mb-4">
+                        <Badge className={getSpecialtyColor(professional.specialty)}>
+                          {professional.specialty}
+                        </Badge>
+                        <Badge variant="outline" className={getCareerLevelColor(professional.career_level)}>
+                          {professional.career_level}
+                        </Badge>
+                      </div>
+                      
+                      <div className="space-y-1 text-sm text-gray-600">
+                        {professional.email && (
+                          <div className="flex items-center gap-2">
+                            <Mail className="w-4 h-4" />
+                            <span className="truncate">{professional.email}</span>
+                          </div>
+                        )}
+                        {professional.phone && (
+                          <div className="flex items-center gap-2">
+                            <Phone className="w-4 h-4" />
+                            <span>{professional.phone}</span>
+                          </div>
+                        )}
+                      </div>
+                      
+                      <div className="mt-4 flex items-center justify-between">
+                        <Badge variant={professional.active ? "default" : "secondary"} className="text-xs">
+                          {professional.active ? "Ativo" : "Inativo"}
+                        </Badge>
+                        <span className={`w-2 h-2 rounded-full ${professional.is_formed ? 'bg-green-400' : 'bg-yellow-400'}`} title={professional.is_formed ? 'Formado' : 'Em formação'}></span>
+                      </div>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        ) : (
+          <Card className="border-0 shadow-lg bg-white/80 backdrop-blur-sm">
+            <CardContent className="p-0">
+              <div className="space-y-0">
+                {filteredProfessionals.map((professional, index) => (
+                  <div key={professional.id} className={`p-6 flex items-center gap-6 hover:bg-gray-50 transition-colors ${index !== 0 ? 'border-t border-gray-100' : ''}`}>
+                    <div className="w-10 h-10 bg-gradient-to-r from-purple-500 to-pink-500 rounded-full flex items-center justify-center text-white font-bold shadow-lg">
+                      {professional.name.charAt(0)}
+                    </div>
+                    <div className="flex-1 grid grid-cols-1 md:grid-cols-4 gap-4 items-center">
+                      <div>
+                        <h3 className="font-bold text-gray-900">{professional.name}</h3>
+                        <p className="text-sm text-gray-600">{professional.career_level}</p>
+                      </div>
+                      <div>
+                        <Badge className={getSpecialtyColor(professional.specialty)}>
+                          {professional.specialty}
+                        </Badge>
+                      </div>
+                      <div className="text-sm text-gray-600">
+                        {professional.email && (
+                          <div className="flex items-center gap-1 mb-1">
+                            <Mail className="w-3 h-3" />
+                            <span className="truncate">{professional.email}</span>
+                          </div>
+                        )}
+                        {professional.phone && (
+                          <div className="flex items-center gap-1">
+                            <Phone className="w-3 h-3" />
+                            <span>{professional.phone}</span>
+                          </div>
+                        )}
+                      </div>
+                      <div className="flex items-center justify-end gap-2">
+                        <Badge variant={professional.active ? "default" : "secondary"} className="text-xs">
+                          {professional.active ? "Ativo" : "Inativo"}
+                        </Badge>
+                        <span className={`w-2 h-2 rounded-full ${professional.is_formed ? 'bg-green-400' : 'bg-yellow-400'}`} title={professional.is_formed ? 'Formado' : 'Em formação'}></span>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
+        {filteredProfessionals.length === 0 && !loading && (
+          <Card className="border-0 shadow-lg bg-white/80 backdrop-blur-sm">
+            <CardContent className="text-center py-12">
+              <Users className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+              <h3 className="text-lg font-semibold text-gray-700 mb-2">
+                Nenhum profissional encontrado
+              </h3>
+              <p className="text-gray-500 mb-6">
+                {searchTerm || filterSpecialty || filterCareerLevel 
+                  ? "Tente ajustar os filtros para encontrar profissionais"
+                  : "Comece adicionando profissionais à equipe"
+                }
+              </p>
+              <Button className="bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700">
+                <Plus className="w-4 h-4 mr-2" />
+                Adicionar Profissional
+              </Button>
+            </CardContent>
+          </Card>
+        )}
+      </div>
+    </div>
+  );
+}
