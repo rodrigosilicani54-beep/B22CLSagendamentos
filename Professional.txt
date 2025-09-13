@@ -1,0 +1,62 @@
+{
+  "name": "Professional",
+  "type": "object",
+  "properties": {
+    "name": {
+      "type": "string",
+      "description": "Nome completo do profissional"
+    },
+    "specialty": {
+      "type": "string",
+      "enum": [
+        "ABA",
+        "Fonoaudiologia",
+        "Psicologia",
+        "Terapia Ocupacional",
+        "Fisioterapia",
+        "Nutrição",
+        "Medicina",
+        "Supervisão",
+        "Gestão"
+      ],
+      "description": "Especialidade do profissional"
+    },
+    "career_level": {
+      "type": "string",
+      "enum": [
+        "Trainee",
+        "Profissional",
+        "Analista",
+        "Supervisor",
+        "Gestor",
+        "Coordenador",
+        "Diretor"
+      ],
+      "description": "Nível hierárquico"
+    },
+    "is_formed": {
+      "type": "boolean",
+      "default": true,
+      "description": "Profissional formado"
+    },
+    "email": {
+      "type": "string",
+      "format": "email",
+      "description": "Email do profissional"
+    },
+    "phone": {
+      "type": "string",
+      "description": "Telefone para contato"
+    },
+    "active": {
+      "type": "boolean",
+      "default": true,
+      "description": "Status ativo/inativo"
+    }
+  },
+  "required": [
+    "name",
+    "specialty",
+    "career_level"
+  ]
+}

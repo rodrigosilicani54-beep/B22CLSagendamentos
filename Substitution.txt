@@ -1,0 +1,56 @@
+{
+  "name": "Substitution",
+  "type": "object",
+  "properties": {
+    "absent_professional_id": {
+      "type": "string",
+      "description": "ID do profissional ausente"
+    },
+    "substitute_professional_id": {
+      "type": "string",
+      "description": "ID do substituto (se encontrado)"
+    },
+    "absence_date": {
+      "type": "string",
+      "format": "date",
+      "description": "Data da ausência"
+    },
+    "absence_time": {
+      "type": "string",
+      "description": "Horário específico ou 'Dia Todo'"
+    },
+    "priority_rule": {
+      "type": "integer",
+      "description": "Regra de prioridade aplicada (1-8)"
+    },
+    "priority_reason": {
+      "type": "string",
+      "description": "Explicação da regra aplicada"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "Pendente",
+        "Confirmado",
+        "Rejeitado",
+        "Em Análise"
+      ],
+      "default": "Pendente",
+      "description": "Status da substituição"
+    },
+    "notes": {
+      "type": "string",
+      "description": "Observações adicionais"
+    },
+    "compatibility_score": {
+      "type": "number",
+      "description": "Score de compatibilidade (0-100)"
+    }
+  },
+  "required": [
+    "absent_professional_id",
+    "absence_date",
+    "absence_time",
+    "status"
+  ]
+}

@@ -1,0 +1,61 @@
+{
+  "name": "Schedule",
+  "type": "object",
+  "properties": {
+    "professional_id": {
+      "type": "string",
+      "description": "ID do profissional"
+    },
+    "day_of_week": {
+      "type": "string",
+      "enum": [
+        "segunda",
+        "terça",
+        "quarta",
+        "quinta",
+        "sexta",
+        "sábado",
+        "domingo"
+      ],
+      "description": "Dia da semana"
+    },
+    "time_slot": {
+      "type": "string",
+      "description": "Horário (ex: 08:00)"
+    },
+    "activity": {
+      "type": "string",
+      "description": "Descrição da atividade/paciente"
+    },
+    "activity_type": {
+      "type": "string",
+      "enum": [
+        "Atendimento Clínica",
+        "Análise",
+        "Discussão de Caso",
+        "CLS",
+        "Supervisão",
+        "Treinamento",
+        "Orientação Parental",
+        "Almoço/Bloqueado"
+      ],
+      "description": "Tipo da atividade"
+    },
+    "is_patient": {
+      "type": "boolean",
+      "default": false,
+      "description": "É atendimento de paciente"
+    },
+    "week_reference": {
+      "type": "string",
+      "description": "Semana de referência (YYYY-MM-DD)"
+    }
+  },
+  "required": [
+    "professional_id",
+    "day_of_week",
+    "time_slot",
+    "activity",
+    "activity_type"
+  ]
+}
